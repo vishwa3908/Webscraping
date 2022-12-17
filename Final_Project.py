@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 import re
 from random import randint
 from abc import ABC, abstractmethod
-
+import os
 class Extraction(ABC):
 
     @abstractmethod
@@ -270,6 +270,8 @@ class Extract_all_categories():
     def extract_all_amazon_categories(self):
         project_url = self.project_url
         response = requests.get(project_url)
+        while response.status_code !=200:
+            response = requests.get(project_url)
         page_contents = response.text
         parsed_doc = BeautifulSoup(page_contents,'html.parser')
         clas ='_p13n-zg-nav-tree-all_style_zg-browse-item__1rdKf _p13n-zg-nav-tree-all_style_zg-browse-height-small__nleKL'
@@ -285,7 +287,7 @@ class Extract_all_categories():
             
             categories = f[0].split(">")[1]
             category_json = {}
-            category_json["Number"] = count_category
+            category_json["Category_Number"] = count_category
             category_json["Category"] = categories
             category_json["Category_link"] = final_link
             category_json['Subcategory'] = []
@@ -306,14 +308,22 @@ class Extract_all_categories():
                 f.close()
 
     def extract_all_amazon_subcategories(self):
-        with open('all_categories.json','r',encoding='utf8') as f:
-            data =json.load(f)
-        number_of_all_categories = len(data['All_categories'])
-        for index in range(number_of_all_categories):
-            url = data['All_categories'][index]['Category_link']
+        # with open('all_categories.json','r',encoding='utf8') as f:
+        #     data =json.load(f)
+        directory = "All_Files"
+        for filename in os.listdir(directory):
+            fil = os.path.join(directory, filename)
+        # checking if it is a file
+            if os.path.isfile(fil):
+                with open(fil,'r',encoding='utf8') as f:
+                    data =json.load(f)
+                    print("Filling Sub categories in  {} File".format(fil))
+            url = data['Category_link']
             without_escape_url = url.replace("\\","")
             project_url = without_escape_url.replace('"',"")
             response = requests.get(project_url)
+            while response.status_code!=200:
+                response = requests.get(project_url)
             if response.status_code ==200:
                 page_contents = response.text
                 parsed_doc = BeautifulSoup(page_contents,'html.parser')
@@ -336,35 +346,97 @@ class Extract_all_categories():
                     sub_data['Name'] = subcategory
                     sub_data['Link']=final_sub_link
                     sub_data['All_sub_data'] = []
-                    with open('all_categories.json','r',encoding='utf8') as file:
+                    sub_data['All_sub_Category'] = []
+                    with open(fil,'r',encoding='utf8') as file:
                         dic = json.load(file)
                     
-                    if sub_data not in dic['All_categories'][index]['Subcategory']:
-                        dic['All_categories'][index]['Subcategory'].append(sub_data)
+                    if sub_data not in dic['Subcategory']:
+                        dic['Subcategory'].append(sub_data)
                     
 
-                    with open('all_categories.json','w',encoding='utf8') as file:
+                    with open(fil,'w',encoding='utf8') as file:
                         json.dump(dic,file)
                         file.close()
                     sub_count+=1
 
+    def pass_sub_cat_url(self):
+        directory = "All_Files"
+        for filename in os.listdir(directory):
+            fil = os.path.join(directory, filename)
+        # checking if it is a file
+            if os.path.isfile(fil):
+                with open(fil,'r',encoding='utf8') as f:
+                    data =json.load(f)
+                    print("Extracting Sub Sub-Category of {} file".format(fil))
+                len_sub_cat = len(data['Subcategory'])
+                for index in range(len_sub_cat):
+                    url = data['Subcategory'][index]['Link']
+                    sub_data = self.extract_all_amazon_sub_sub_category(url)
+                    if sub_data not in data['Subcategory'][index]['All_sub_Category']:
+                        data['Subcategory'][index]['All_sub_Category']= sub_data
+                    with open(fil,'w',encoding='utf8') as f:
+                        json.dump(data,f)
+                
+
+
+    def extract_all_amazon_sub_sub_category(self,url):
+        
+        url =url
+        without_escape_url = url.replace("\\","")
+        project_url = without_escape_url.replace('"',"")
+        response = requests.get(project_url)
+        while response.status_code!=200:
+            response = requests.get(project_url)
+        if response.status_code ==200:
+            page_contents = response.text
+            parsed_doc = BeautifulSoup(page_contents,'html.parser')
+            clas ="_p13n-zg-nav-tree-all_style_zg-browse-item__1rdKf _p13n-zg-nav-tree-all_style_zg-browse-height-large__1z5B8"
+            ddd = parsed_doc.find_all('div',{'class':clas})
+            sub_count = 1
+            final_sub_data = []
+            for i in range(1,len(ddd)):
+                s = str(ddd[i].a)
+                f = s.split("</a>")
+                categories = f[0].split(">")
+                subcategory = categories[-1]
+                c = s
+                z = c.split(">")
+                final_sub_link = '"https://www.amazon.in'+z[0].split('="')[-1]
+
+
+
+                sub_data = {}
+                sub_data['Index'] = sub_count
+                sub_data['Name'] = subcategory
+                sub_data['Link']=final_sub_link
+                sub_data['All_sub_records']=[]
+                final_sub_data.append(sub_data)
+                sub_count+=1
+            return final_sub_data
+
+
     def extract_all_amazon_subcategories_data(self):
-        with open('all_categories.json','r',encoding='utf8') as f:
-            all_data =json.load(f)
-        len_all_data = len(all_data['All_categories'])
-        for record in range(len_all_data):
-            len_sub_category = len(all_data['All_categories'][record]['Subcategory'])
-            for data in range(len_sub_category):
-                sub_link = all_data['All_categories'][record]['Subcategory'][data]['Link']
+        directory = "All_Files"
+        for filename in os.listdir(directory):
+            fil = os.path.join(directory, filename)
+        # checking if it is a file
+            if os.path.isfile(fil):
+                with open(fil,'r',encoding='utf8') as f:
+                    data =json.load(f)
+                len_sub_category = len(data['Subcategory'])
+            for dat in range(len_sub_category):
+                sub_link = data['Subcategory'][dat]['Link']
                 without_escape_url = sub_link.replace("\\","")
                 project_url = without_escape_url.replace('"',"")
-                self.fill_all_values(record,data,project_url)
+                self.fill_all_values(fil,dat,project_url)
 
-    def fill_all_values(self,first_index,second_index,project_url):
+    def fill_all_values(self,fil,second_index,project_url):
         response = requests.get(project_url)  # requesting at link at record index   
-        price = "00"
-        rating = "00"
-        reviews = 00
+        price = None
+        rating = None
+        reviews = None
+        title=None
+        author=None
         while response.status_code !=200:
             response = requests.get(project_url)   # looping till succesfully data is fetched
 
@@ -375,9 +447,9 @@ class Extract_all_categories():
 
             cc = "p13n-sc-uncoverable-faceout"   # class that contain all details of books
             dd = parsed_doc.find_all('div',{'class':cc})
-
+    
             count=1   # variable to keep track of number of books
-
+            
             for index in range(len(dd)):   # to iterate over all data present in the class cc
             
         # -------------------finding ratings of the book -----------------------
@@ -441,10 +513,15 @@ class Extract_all_categories():
                         if len(z)==2:
                             xx=z[1].replace("', '","")
                             xx = xx.replace(">","")
+                            title = xx
                         else:
                             xx = z
                         
-                        title = xx
+                            title = xx
+
+                
+
+
 
         #----------------------finding book image link-------------------------------------------
         # ---------------------image  is of 900X600 size-------------------
@@ -463,24 +540,73 @@ class Extract_all_categories():
             
                 sub_records["Number"]=count
                 # book_records['Book_link']=""
+                sub_records['Title'] = title
                 sub_records["image_link"] = image_link
-                sub_records["Author"] =""
+                if "Books" in fil:
+                    sub_records["Author"] =author
                 # book_records['Author_link']=""
                 sub_records['Rating']=rating
                 sub_records['Views']=reviews
                 sub_records["Price"]=price
-                with open('all_categories.json','r',encoding='utf8') as file:
-                        dic = json.load(file)
-                    
-                if sub_records not in dic['All_categories'][first_index]['Subcategory'][second_index]['All_sub_data']:
-                    dic['All_categories'][first_index]['Subcategory'][second_index]['All_sub_data'].append(sub_records)
+                if "Books" in fil:
+                    sub_records["Author"] =author
                 
+                with open(fil,'r',encoding='utf8') as f:
+                    data =json.load(f)
+                    
+                if sub_records not in data['Subcategory'][second_index]['All_sub_data']:
+                    data['Subcategory'][second_index]['All_sub_data'].append(sub_records)
+        
 
-                with open('all_categories.json','w',encoding='utf8') as file:
-                    json.dump(dic,file)
+                with open(fil,'w',encoding='utf8') as file:
+                    json.dump(data,file)
                     file.close()
 
                 count+=1 #  increasing to increase the book number
+
+    def fill_other_titles(self):
+        directory = "All_Files"
+        for filename in os.listdir(directory):
+            fil = os.path.join(directory, filename)
+            
+            if "Books" not in fil:
+        # checking if it is a file
+                if os.path.isfile(fil):
+                    with open(fil,'r',encoding='utf8') as f:
+                        data =json.load(f)
+                    sub_cat_len = len(data['Subcategory'])
+                    
+                    for index in range(sub_cat_len):
+                        sub_cat_url = data["Subcategory"][index]['Link']
+                        without_escape_url = sub_cat_url.replace("\\","")
+                        project_url = without_escape_url.replace('"',"")
+                        sub_cat_url = project_url
+                        len_sub_subcat = len(data['Subcategory'][index]['All_sub_data'])
+                        
+                        for i in range(len_sub_subcat):
+                            response = requests.get(sub_cat_url)
+                            while response.status_code !=200:
+                                response = requests.get(sub_cat_url)
+                            page_contents = response.text
+                            parsed_doc = BeautifulSoup(page_contents,'html.parser')
+                            clas = "_cDEzb_p13n-sc-css-line-clamp-3_g3dy1"
+                            ddd = parsed_doc.find_all('div',{'class':clas})
+                           
+                            
+                            for ix in ddd:
+                                t = str(ix)
+                                s = t.split("</div>")
+                                sd = s[0]
+                                title = sd.split(">")[-1]
+                                data['Subcategory'][index]['All_sub_data'][i]['Title'] = title
+                                i=i+1
+                                with open(fil,'w',encoding='utf8') as file:
+                                    json.dump(data,file)
+                                    file.close()
+                                if i==len_sub_subcat:
+                                    break
+                            
+                            break
 
 
 
@@ -503,10 +629,13 @@ if __name__ == "__main__":
         print("Filling up the All Amazon Sub-Categories")
         obj2.extract_all_amazon_subcategories()
         print("Filled all Amazon Sub-Categories")
-        print("Filling all sub_categories_data")
-        # obj2.extract_all_amazon_subcategories_data()
+        print("Filling all sub_sub_categories_data")
+        obj2.pass_sub_cat_url()
+        
+        obj2.extract_all_amazon_subcategories_data()
         print("filled done")
-
+        obj2.fill_other_titles()
+        print("title filled")
 
 
     if obj1_response:
